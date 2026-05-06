@@ -125,7 +125,7 @@ export default function CameraView({
   }
 
   return (
-    <div className="screen relative bg-black text-white">
+    <div className="fixed inset-0 z-50 bg-black text-white flex flex-col no-touch-action">
       <div className="absolute inset-0">
         {error ? (
           <ErrorOverlay error={error} onRetry={() => setCurrentFacing((f) => f)} onCancel={onCancel} />
@@ -147,8 +147,15 @@ export default function CameraView({
         )}
       </div>
 
-      {/* Top bar */}
-      <div className="relative z-10 flex items-center justify-between px-4 pt-4">
+      {/* Top bar — respects the device notch / status bar */}
+      <div
+        className="relative z-10 flex items-center justify-between px-4"
+        style={{
+          paddingTop: 'max(1rem, env(safe-area-inset-top))',
+          paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+          paddingRight: 'max(1rem, env(safe-area-inset-right))',
+        }}
+      >
         <button onClick={onCancel} className="btn-pill !bg-black/40 !text-white" aria-label="Back">
           ← Back
         </button>
@@ -164,8 +171,15 @@ export default function CameraView({
 
       <div className="flex-1" />
 
-      {/* Bottom bar */}
-      <div className="relative z-10 pb-8 pt-6 px-6 bg-gradient-to-t from-black/70 to-transparent">
+      {/* Bottom bar — anchored to the bottom with safe-area padding so the
+          capture button always sits where users expect it on phones with
+          home indicators or browser bottom bars */}
+      <div
+        className="relative z-10 pt-6 px-6 bg-gradient-to-t from-black/70 to-transparent"
+        style={{
+          paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+        }}
+      >
         {instruction && (
           <p className="text-center text-sm text-white/90 mb-4 max-w-xs mx-auto">
             {instruction}

@@ -26,7 +26,7 @@ const OverlayEditor = forwardRef(function OverlayEditor(
   const [, force] = useState(0);
   const rerender = () => force((n) => n + 1);
 
-  const [active, setActive] = useState(false); // shows the dashed editing border
+  const [active, setActive] = useState(true); // shows the dashed editing border
   const idleTimerRef = useRef(null);
   const pointersRef = useRef(new Map()); // id -> {x, y, target}
   const gestureRef = useRef(null); // multi-touch baseline

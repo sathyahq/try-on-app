@@ -1,188 +1,207 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import OverlayEditor from './OverlayEditor';
-import { loadImage, canvasToBlob } from '../utils/canvasCompositor';
-import { presetToTransform, getGarmentType } from '../utils/garmentPositions';
+import { useEffect, useRef, useState } from 'react';
+import { generateTryOn } from '../utils/geminiTryOn';
+import { applyWatermark, canvasToBlob, loadImage } from '../utils/canvasCompositor';
 import { shareImage, downloadBlob } from '../utils/shareUtils';
+import { getGarmentType } from '../utils/garmentPositions';
 
+// AI-powered try-on result screen.
+// 3 phases: 'generating' → 'ready' → (or 'error')
 export default function TryOnResult({
-  customerPhoto, // { dataUrl, width, height }
-  garmentDataUrl,
+  customerPhoto,        // { blob, dataUrl, width, height }
+  garmentBlob,          // raw garment photo blob
   garmentType,
-  onSave,        // (entry) => void   - called when staff moves on or shares
+  onSave,
   onTryAnother,
   onViewGallery,
   onNewCustomer,
   onBack,
+  onRetake,
   tryOnCount,
 }) {
-  const editorRef = useRef(null);
-  const [customerImage, setCustomerImage] = useState(null);
-  const [garmentImage, setGarmentImage] = useState(null);
-  const [opacity, setOpacity] = useState(0.85);
-  const [transform, setTransform] = useState(null);
-  const [busy, setBusy] = useState(null); // 'sharing' | 'downloading' | null
+  const [phase, setPhase] = useState('generating'); // 'generating' | 'ready' | 'error'
+  const [progress, setProgress] = useState({ pct: 8, message: 'Preparing your photos…' });
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null); // { blob, dataUrl }
+  const [busy, setBusy] = useState(null);
+  const cancelledRef = useRef(false);
+  const savedRef = useRef(false);
 
-  // Load both images
   useEffect(() => {
-    let cancelled = false;
+    cancelledRef.current = false;
+    setPhase('generating');
+    setError(null);
+    setResult(null);
+    savedRef.current = false;
+
     (async () => {
-      const [ci, gi] = await Promise.all([
-        loadImage(customerPhoto.dataUrl),
-        loadImage(garmentDataUrl),
-      ]);
-      if (cancelled) return;
-      setCustomerImage(ci);
-      setGarmentImage(gi);
+      try {
+        const aiBlob = await generateTryOn(
+          { customerBlob: customerPhoto.blob, garmentBlob, garmentType },
+          (p) => {
+            if (!cancelledRef.current) setProgress(p);
+          }
+        );
+        if (cancelledRef.current) return;
+
+        // Apply store watermark on the AI output before showing it
+        const aiUrl = URL.createObjectURL(aiBlob);
+        const aiImg = await loadImage(aiUrl);
+        const canvas = await applyWatermark(aiImg);
+        const finalBlob = await canvasToBlob(canvas, 'image/jpeg', 0.92);
+        URL.revokeObjectURL(aiUrl);
+        const finalUrl = URL.createObjectURL(finalBlob);
+
+        if (cancelledRef.current) {
+          URL.revokeObjectURL(finalUrl);
+          return;
+        }
+        setResult({ blob: finalBlob, dataUrl: finalUrl });
+        setPhase('ready');
+      } catch (err) {
+        if (cancelledRef.current) return;
+        console.error('Try-on generation failed', err);
+        setError(err.message || 'Try-on generation failed.');
+        setPhase('error');
+      }
     })();
+
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
-  }, [customerPhoto.dataUrl, garmentDataUrl]);
+  }, [customerPhoto.blob, garmentBlob, garmentType]);
 
-  // Compute initial transform once both images are ready
-  const initialTransform = useMemo(() => {
-    if (!customerImage || !garmentImage) return null;
-    const photoSize = {
-      w: customerImage.naturalWidth,
-      h: customerImage.naturalHeight,
-    };
-    const garmentNatural = {
-      w: garmentImage.naturalWidth,
-      h: garmentImage.naturalHeight,
-    };
-    const t = presetToTransform(
-      getGarmentType(garmentType).preset,
-      photoSize,
-      garmentNatural
-    );
-    return t;
-  }, [customerImage, garmentImage, garmentType]);
-
-  useEffect(() => {
-    if (initialTransform) setTransform(initialTransform);
-  }, [initialTransform]);
-
-  async function exportBlob() {
-    const canvas = editorRef.current?.getCanvas();
-    if (!canvas) return null;
-    return canvasToBlob(canvas, 'image/jpeg', 0.92);
-  }
-
-  function buildEntry(blob, dataUrl) {
+  function buildEntry() {
     return {
       id: `tryon-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       garmentType,
-      blob,
-      dataUrl,
-      transform: editorRef.current?.getTransform() || transform,
-      opacity,
-      garmentDataUrl,
+      blob: result.blob,
+      dataUrl: result.dataUrl,
       createdAt: Date.now(),
     };
   }
 
-  async function commitToSession() {
-    const blob = await exportBlob();
-    if (!blob) return null;
-    const dataUrl = URL.createObjectURL(blob);
-    const entry = buildEntry(blob, dataUrl);
-    onSave?.(entry);
-    return entry;
+  function commit() {
+    if (!result || savedRef.current) return;
+    savedRef.current = true;
+    onSave?.(buildEntry());
   }
 
   async function handleShare() {
-    if (busy) return;
+    if (busy || !result) return;
     setBusy('sharing');
     try {
-      const blob = await exportBlob();
-      if (!blob) return;
-      await shareImage(blob, {
+      await shareImage(result.blob, {
         filename: `tryon-${garmentType}-${Date.now()}.jpg`,
       });
-      // Auto-save to session so staff doesn't have to remember.
-      const dataUrl = URL.createObjectURL(blob);
-      onSave?.(buildEntry(blob, dataUrl));
+      commit();
     } finally {
       setBusy(null);
     }
   }
 
   async function handleDownload() {
-    if (busy) return;
+    if (busy || !result) return;
     setBusy('downloading');
     try {
-      const blob = await exportBlob();
-      if (!blob) return;
-      downloadBlob(blob, `tryon-${garmentType}-${Date.now()}.jpg`);
-      const dataUrl = URL.createObjectURL(blob);
-      onSave?.(buildEntry(blob, dataUrl));
+      downloadBlob(result.blob, `tryon-${garmentType}-${Date.now()}.jpg`);
+      commit();
     } finally {
       setBusy(null);
     }
   }
 
-  async function handleTryAnother() {
-    await commitToSession();
+  function handleTryAnother() {
+    commit();
     onTryAnother();
   }
-
-  async function handleViewGallery() {
-    await commitToSession();
+  function handleViewGallery() {
+    commit();
     onViewGallery();
   }
-
-  async function handleNewCustomer() {
-    await commitToSession();
+  function handleNewCustomer() {
+    commit();
     onNewCustomer();
   }
 
+  const garmentLabel = getGarmentType(garmentType).label;
+
+  if (phase === 'generating') {
+    return (
+      <div className="screen items-center justify-center px-6 py-8 animate-fade-in">
+        <div className="text-center max-w-sm">
+          <div className="text-gold text-xs tracking-[0.2em] uppercase mb-2">
+            {garmentLabel}
+          </div>
+          <h3 className="text-xl font-bold text-maroon mb-3">Creating your try-on…</h3>
+          <p className="text-sm text-ink/60 mb-8">{progress.message}</p>
+
+          <div className="w-full h-2 bg-maroon/10 rounded-full overflow-hidden mb-2">
+            <div
+              className="h-full bg-gradient-to-r from-maroon to-gold transition-[width] duration-500"
+              style={{ width: `${progress.pct || 8}%` }}
+            />
+          </div>
+          <div className="text-xs text-ink/50">{progress.pct || 8}%</div>
+
+          <p className="text-xs text-ink/40 mt-8">
+            This usually takes 5 to 15 seconds.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === 'error') {
+    const isQuota = /quota|429/i.test(error || '');
+    return (
+      <div className="screen items-center justify-center px-6 py-8 animate-fade-in text-center">
+        <div className="w-16 h-16 rounded-full bg-maroon/10 flex items-center justify-center mb-4">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#800020" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-maroon mb-2">
+          {isQuota ? 'Daily AI quota reached' : 'Try-on generation failed'}
+        </h3>
+        <p className="text-sm text-ink/70 mb-8 max-w-sm">{error}</p>
+        <div className="w-full max-w-xs space-y-3">
+          <button className="btn-primary" onClick={onRetake}>
+            Try a Different Photo
+          </button>
+          <button className="btn-ghost w-full" onClick={onBack}>
+            Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ready
   return (
     <div className="screen animate-fade-in">
       <header className="px-4 pt-4 pb-2 flex items-center gap-3">
         <button onClick={onBack} className="btn-ghost !min-h-[40px] !px-3">←</button>
         <div className="flex-1">
           <h2 className="text-lg font-bold text-maroon leading-tight">
-            {getGarmentType(garmentType).label}
+            {garmentLabel}
           </h2>
-          <p className="text-xs text-ink/60">Drag to reposition · Pinch to resize · Twist handle to rotate</p>
+          <p className="text-xs text-ink/60">Looks good?</p>
         </div>
       </header>
 
-      <div className="flex-1 px-3 py-2 flex flex-col items-center justify-center min-h-0">
-        {customerImage && garmentImage && initialTransform ? (
-          <OverlayEditor
-            ref={editorRef}
-            customerImage={customerImage}
-            garmentImage={garmentImage}
-            initialTransform={initialTransform}
-            opacity={opacity}
-            onTransformChange={setTransform}
+      <div className="flex-1 flex items-center justify-center px-4 py-2 min-h-0">
+        <div className="surface overflow-hidden max-h-full">
+          <img
+            src={result.dataUrl}
+            alt="Try-on result"
+            className="block max-w-full max-h-[68vh] object-contain"
           />
-        ) : (
-          <div className="text-ink/60 animate-pulse-soft">Preparing try-on…</div>
-        )}
-      </div>
-
-      {/* Opacity slider */}
-      <div className="px-6 pb-2 pt-3">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-ink/60 w-14">Opacity</span>
-          <input
-            type="range"
-            min="30"
-            max="100"
-            value={Math.round(opacity * 100)}
-            onChange={(e) => setOpacity(Number(e.target.value) / 100)}
-            className="flex-1 accent-maroon h-2"
-          />
-          <span className="text-xs text-ink/70 w-10 text-right">
-            {Math.round(opacity * 100)}%
-          </span>
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="px-4 pb-5 pt-2 grid grid-cols-2 gap-2">
+      <div className="px-4 pb-5 pt-3 grid grid-cols-2 gap-2">
         <button className="btn-primary col-span-2" onClick={handleShare} disabled={!!busy}>
           <WhatsAppIcon />
           {busy === 'sharing' ? 'Sharing…' : 'Share on WhatsApp'}

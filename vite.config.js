@@ -9,15 +9,5 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          imgly: ['@imgly/background-removal'],
-        },
-      },
-    },
-  },
-  optimizeDeps: {
-    exclude: ['@imgly/background-removal'],
   },
 });

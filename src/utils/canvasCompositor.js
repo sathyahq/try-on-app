@@ -97,6 +97,24 @@ export async function composeTryOn({
   return canvas;
 }
 
+// Apply only the watermark on top of an existing image (used for AI try-on
+// outputs, where the AI already produced the full composite).
+export async function applyWatermark(image, targetCanvas) {
+  const w = image.naturalWidth || image.width;
+  const h = image.naturalHeight || image.height;
+
+  const canvas = targetCanvas || document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(image, 0, 0, w, h);
+
+  const logo = await tryLoadLogo();
+  drawWatermark(ctx, w, h, logo);
+  return canvas;
+}
+
 export function canvasToBlob(canvas, type = 'image/jpeg', quality = 0.9) {
   return new Promise((resolve, reject) => {
     canvas.toBlob(

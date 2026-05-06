@@ -5,7 +5,6 @@ import GarmentTypeSelector from './components/GarmentTypeSelector';
 import GarmentCapture from './components/GarmentCapture';
 import TryOnResult from './components/TryOnResult';
 import SessionGallery from './components/SessionGallery';
-import { preloadBackgroundRemovalModel } from './utils/backgroundRemoval';
 import { MAX_TRYONS_PER_SESSION, SESSION_WARN_THRESHOLD } from './config';
 
 // Linear screen flow:
@@ -35,11 +34,6 @@ export default function App() {
   // navigation buttons that all call onSave.
   const committedIds = useRef(new Set());
 
-  useEffect(() => {
-    // Pre-warm the WASM module while staff is on the welcome screen.
-    preloadBackgroundRemovalModel();
-  }, []);
-
   const handleStart = () => setScreen(SCREENS.CUSTOMER);
 
   const handleCustomerConfirmed = (photo) => {
@@ -58,8 +52,8 @@ export default function App() {
     setScreen(SCREENS.GARMENT_CAPTURE);
   };
 
-  const handleGarmentReady = ({ dataUrl, garmentType }) => {
-    setPendingGarment({ dataUrl, garmentType });
+  const handleGarmentReady = ({ blob, dataUrl, garmentType }) => {
+    setPendingGarment({ blob, dataUrl, garmentType });
     setScreen(SCREENS.TRY_ON);
   };
 
@@ -134,7 +128,7 @@ export default function App() {
     body = (
       <TryOnResult
         customerPhoto={customerPhoto}
-        garmentDataUrl={pendingGarment.dataUrl}
+        garmentBlob={pendingGarment.blob}
         garmentType={pendingGarment.garmentType}
         tryOnCount={tryOns.length}
         onSave={handleSaveTryOn}
@@ -142,6 +136,7 @@ export default function App() {
         onViewGallery={() => setGalleryOpen(true)}
         onNewCustomer={goNewCustomer}
         onBack={() => setScreen(SCREENS.GARMENT_TYPE)}
+        onRetake={() => setScreen(SCREENS.GARMENT_CAPTURE)}
       />
     );
   }

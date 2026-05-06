@@ -54,6 +54,8 @@ export async function generateTryOn(
     const err = new Error(info.error || `Try-on request failed (${response.status})`);
     err.status = response.status;
     err.hint = info.hint;
+    err.googleStatus = info.googleStatus;
+    err.googleMessage = info.googleMessage;
     throw err;
   }
 

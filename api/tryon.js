@@ -116,13 +116,39 @@ export default async function handler(req, res) {
       const text = await geminiRes.text();
       console.error('Gemini error', geminiRes.status, text);
       const status = geminiRes.status;
-      let userError = 'Try-on generation failed. Please try again.';
-      if (status === 429) {
-        userError = "We've hit today's free quota for AI try-ons. Please try again later.";
-      } else if (status === 400) {
-        userError = "The garment or customer photo couldn't be processed. Try a clearer photo.";
+
+      // Pull the actual message Google sent so we can diagnose billing /
+      // quota / model-availability issues without relying on Vercel logs.
+      let googleMessage = '';
+      let googleStatus = '';
+      try {
+        const parsed = JSON.parse(text);
+        googleMessage = parsed?.error?.message || '';
+        googleStatus = parsed?.error?.status || '';
+      } catch {
+        googleMessage = text.slice(0, 400);
       }
-      return res.status(status === 429 ? 429 : 502).json({ error: userError });
+
+      let userError;
+      if (status === 429) {
+        userError =
+          'Google rate-limit / quota error. This may be the per-minute limit (try again in 60s) OR the daily free-tier cap. Check the message below.';
+      } else if (status === 400) {
+        userError = "The photos couldn't be processed. Try clearer photos.";
+      } else if (status === 401 || status === 403) {
+        userError =
+          'Google rejected the API key. The key may be invalid, restricted to a different referrer, or the project may not have the Generative Language API enabled.';
+      } else if (status === 503) {
+        userError = 'The Gemini service is temporarily overloaded. Try again in a few seconds.';
+      } else {
+        userError = 'Try-on generation failed.';
+      }
+
+      return res.status(status === 429 ? 429 : 502).json({
+        error: userError,
+        googleStatus: googleStatus || String(status),
+        googleMessage: googleMessage || undefined,
+      });
     }
 
     const data = await geminiRes.json();

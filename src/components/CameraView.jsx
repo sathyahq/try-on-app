@@ -204,22 +204,26 @@ function SilhouetteGuide() {
   return (
     <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
       <svg
-        viewBox="0 0 200 320"
-        className="h-[80%] opacity-30"
+        viewBox="0 0 200 480"
+        className="h-[88%] opacity-40"
         fill="none"
         stroke="white"
         strokeWidth="2"
         strokeDasharray="6 6"
       >
         {/* Head */}
-        <circle cx="100" cy="40" r="22" />
+        <circle cx="100" cy="38" r="22" />
         {/* Neck */}
-        <path d="M88 60 L88 78 Q100 84 112 78 L112 60" />
-        {/* Shoulders + torso */}
-        <path d="M40 100 Q70 84 88 78 L112 78 Q130 84 160 100 L150 200 Q140 220 130 260 L70 260 Q60 220 50 200 Z" />
-        {/* Arms (slightly out from body) */}
-        <path d="M40 100 Q22 150 24 220" />
-        <path d="M160 100 Q178 150 176 220" />
+        <path d="M88 60 L88 80 Q100 86 112 80 L112 60" />
+        {/* Shoulders + torso to waist */}
+        <path d="M40 100 Q70 84 88 80 L112 80 Q130 84 160 100 L150 220 L138 280 L62 280 L50 220 Z" />
+        {/* Arms (slightly away from the body) */}
+        <path d="M40 100 Q22 180 26 260" />
+        <path d="M160 100 Q178 180 174 260" />
+        {/* Left leg */}
+        <path d="M62 280 L72 460 L96 460 L100 280 Z" />
+        {/* Right leg */}
+        <path d="M100 280 L104 460 L128 460 L138 280 Z" />
       </svg>
     </div>
   );

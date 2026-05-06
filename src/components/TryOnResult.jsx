@@ -21,6 +21,7 @@ export default function TryOnResult({
   const [phase, setPhase] = useState('generating'); // 'generating' | 'ready' | 'error'
   const [progress, setProgress] = useState({ pct: 8, message: 'Preparing your photos…' });
   const [error, setError] = useState(null);
+  const [errorDetail, setErrorDetail] = useState(null);
   const [result, setResult] = useState(null); // { blob, dataUrl }
   const [busy, setBusy] = useState(null);
   const cancelledRef = useRef(false);
@@ -61,6 +62,11 @@ export default function TryOnResult({
         if (cancelledRef.current) return;
         console.error('Try-on generation failed', err);
         setError(err.message || 'Try-on generation failed.');
+        setErrorDetail({
+          status: err.status,
+          googleStatus: err.googleStatus,
+          googleMessage: err.googleMessage,
+        });
         setPhase('error');
       }
     })();
@@ -152,23 +158,40 @@ export default function TryOnResult({
   }
 
   if (phase === 'error') {
-    const isQuota = /quota|429/i.test(error || '');
+    const status = errorDetail?.status;
+    const headline =
+      status === 429
+        ? 'Google quota / rate limit'
+        : status === 401 || status === 403
+        ? 'API key rejected'
+        : 'Try-on generation failed';
+
     return (
-      <div className="screen items-center justify-center px-6 py-8 animate-fade-in text-center">
-        <div className="w-16 h-16 rounded-full bg-maroon/10 flex items-center justify-center mb-4">
+      <div className="screen items-center justify-start px-6 py-6 animate-fade-in text-center overflow-y-auto">
+        <div className="w-16 h-16 rounded-full bg-maroon/10 flex items-center justify-center mb-4 mt-4 mx-auto">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#800020" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold text-maroon mb-2">
-          {isQuota ? 'Daily AI quota reached' : 'Try-on generation failed'}
-        </h3>
-        <p className="text-sm text-ink/70 mb-8 max-w-sm">{error}</p>
+        <h3 className="text-lg font-semibold text-maroon mb-2">{headline}</h3>
+        <p className="text-sm text-ink/70 mb-4 max-w-sm">{error}</p>
+
+        {errorDetail?.googleMessage && (
+          <div className="text-left text-xs bg-white border border-maroon/15 rounded-2xl p-3 mb-6 max-w-sm w-full">
+            <div className="font-semibold text-maroon/80 mb-1">
+              Google says ({errorDetail.googleStatus || errorDetail.status}):
+            </div>
+            <div className="text-ink/70 break-words whitespace-pre-wrap font-mono">
+              {errorDetail.googleMessage}
+            </div>
+          </div>
+        )}
+
         <div className="w-full max-w-xs space-y-3">
           <button className="btn-primary" onClick={onRetake}>
-            Try a Different Photo
+            Try Again
           </button>
           <button className="btn-ghost w-full" onClick={onBack}>
             Back

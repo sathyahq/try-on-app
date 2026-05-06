@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    background-color: #FFF8F0;
+    color: #1A1A1A;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-feature-settings: 'ss01';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 w-full min-h-[56px] px-6 py-3
+           bg-maroon text-white font-semibold rounded-2xl shadow-lift
+           active:scale-[0.98] transition-transform select-none;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 w-full min-h-[56px] px-6 py-3
+           bg-white text-maroon font-semibold rounded-2xl border-2 border-maroon
+           active:scale-[0.98] transition-transform select-none;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-4 py-2
+           text-maroon font-medium rounded-xl active:bg-maroon/10 transition-colors select-none;
+  }
+  .btn-pill {
+    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-5 py-2
+           bg-white/90 text-ink font-medium rounded-full shadow-soft
+           active:scale-95 transition-transform select-none;
+  }
+  .surface {
+    @apply bg-white rounded-3xl shadow-soft;
+  }
+  .screen {
+    @apply min-h-full w-full max-w-md mx-auto flex flex-col bg-cream;
+  }
+}
+
+/* Hide scrollbars but keep functionality on the gallery strip */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Transparent checkerboard for garment preview backgrounds */
+.checkerboard {
+  background-image:
+    linear-gradient(45deg, #e7e7e7 25%, transparent 25%),
+    linear-gradient(-45deg, #e7e7e7 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e7e7e7 75%),
+    linear-gradient(-45deg, transparent 75%, #e7e7e7 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  background-color: #f4f4f4;
+}
+
+/* Disable browser gestures on canvas / camera surfaces */
+.no-touch-action {
+  touch-action: none;
+}

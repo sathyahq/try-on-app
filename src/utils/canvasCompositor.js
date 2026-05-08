@@ -32,12 +32,17 @@ async function tryLoadLogo() {
 function drawWatermark(ctx, w, h, logo) {
   ctx.save();
   if (logo) {
-    const logoH = Math.max(40, Math.round(h * 0.06));
+    // Subtle-but-recognizable corner stamp.
+    // Sized at ~5% of image height so the Tamil text stays readable on a
+    // phone but doesn't compete with the customer photo. Drop shadow keeps
+    // the logo legible whether the background behind it is light or dark.
+    const logoH = Math.max(44, Math.round(h * 0.05));
     const logoW = (logo.naturalWidth / logo.naturalHeight) * logoH;
-    const pad = Math.round(h * 0.02);
-    ctx.globalAlpha = 0.78;
-    ctx.shadowColor = 'rgba(0,0,0,0.45)';
-    ctx.shadowBlur = 6;
+    const pad = Math.round(h * 0.022);
+    ctx.globalAlpha = 0.72;
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 1;
     ctx.drawImage(logo, w - logoW - pad, h - logoH - pad, logoW, logoH);
   } else {
     const fontSize = Math.max(14, Math.round(h * 0.022));
